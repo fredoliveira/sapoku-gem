@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name        = 'sapoku'
-  s.version     = '0.1.5'
+  s.version     = '0.1.8'
   s.date        = '2012-11-16'
   s.summary     = "Manages Sapoku instances"
   s.description = "Manages Sapoku instances"

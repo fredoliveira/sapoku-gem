@@ -53,6 +53,14 @@ class Tadpole
 		$redis.del(@app_name)
 		`sudo lxc-stop -n #{@app_name}`
 		`sudo lxc-destroy -n #{@app_name}`
+		`sudo rm /opt/nginx/conf/containers/#{@app_name}.conf`
+	end
+
+	# returns true if the instance is running
+	def running?
+		$regex = /RUNNING/
+		return false if $regex.match(`sudo lxc-info -n #{@app_name}`).nil?
+		return true
 	end
 
 	# actually creates and initializes the container
