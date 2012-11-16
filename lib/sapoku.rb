@@ -18,6 +18,17 @@ class Tadpole
 		return tadpole
 	end
 
+	# returns an array of known Tadpoles - doesn't scale, obviously
+	def self.all
+		tadpoles = `sudo lxc-ls -1`.split(/\n/).uniq
+		output = []
+		for t in tadpoles do
+			pole = self.find(t)
+			output << pole if !pole.nil?
+		end
+		return output
+	end
+
 	# create a new container stub (then requires saving)
 	def initialize(name)
 		@container_ip = getfreeip
