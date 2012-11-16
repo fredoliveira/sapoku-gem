@@ -48,6 +48,13 @@ class Tadpole
 		$redis.hset(@app_name, "stack", @stack)
 	end
 
+	# wipes a container from HDD and redis
+	def destroy
+		$redis.del(@app_name)
+		`sudo lxc-stop -n #{@app_name}`
+		`sudo lxc-destroy -n #{@app_name}`
+	end
+
 	# actually creates and initializes the container
 	# returns the actual raw console output of the generated commands
 	def bootstrap
