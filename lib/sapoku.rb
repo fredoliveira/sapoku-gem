@@ -2,7 +2,7 @@ require 'redis'
 require 'erb'
 
 class Tadpole
-	attr_accessor :container_ip, :local_port, :app_name, :userid, :ram
+	attr_accessor :container_ip, :local_port, :app_name, :userid, :ram, :stack
 	$redis = Redis.new
 
 	# return an instance based on a given name, if it exists
@@ -15,6 +15,7 @@ class Tadpole
 		tadpole.local_port = $redis.hget(name, "localport")
 		tadpole.userid = $redis.hget(name, "userid")
 		tadpole.ram = $redis.hget(name, "ram")
+		tadpole.stack = $redis.hget(name, "stack")
 		return tadpole
 	end
 
@@ -30,10 +31,11 @@ class Tadpole
 	end
 
 	# create a new container stub (then requires saving)
-	def initialize(name)
+	def initialize(name, stack = "ruby")
 		@container_ip = getfreeip
 		@local_port = getlocalport
 		@app_name = name
+		@stack = stack
 		@ram = 512
 	end
 
@@ -43,14 +45,25 @@ class Tadpole
 		$redis.hset(@app_name, "localport", @local_port)
 		$redis.hset(@app_name, "userid", @userid)
 		$redis.hset(@app_name, "ram", @ram)
+		$redis.hset(@app_name, "stack", @stack)
 	end
 
 	# actually creates and initializes the container
+	# returns the actual raw console output of the generated commands
 	def bootstrap
-		system("sudo lxc-clone -o frox -n #{@app_name}")
-		create_config
-		system("sudo lxc-start -n #{@app_name} -d")
+		self.save
+		output = "Creating new container for your app using the #{@stack} stack"
+		output += `sudo lxc-clone -o #{@stack} -n #{@app_name}`
+		output += "Applying new config file to container"
+		create_lxc_config
+		output += "Booting your new container"
+		output += `sudo lxc-start -n #{@app_name} -d`
 		create_iptables
+		output += "Creating nginx configuration file"
+		create_nginx_config
+		output += "Rehashing nginx configuration"
+		rehash_nginx
+		return output
 	end
 
 	# returns a free IP to be used by the container being bootstrapped
@@ -66,19 +79,58 @@ class Tadpole
 	def get_binding
 		binding
 	end
-	
-	# generate a new config file
-	def create_config
+
+	def create_nginx_config
 		@ip = self.container_ip
 		@ram = self.ram
 		@name = self.app_name
 
 		template = %{
+			server {
+				listen 80;
+				server_name #{@name}.sapoku.webreakstuff.com;
+				access_log off;
+				error_log off;
+
+				location / {
+					proxy_pass http://#{@ip}:8080;
+					proxy_set_header X-Real-IP $remote_addr;
+				}
+			}
+		}
+
+		erb = ERB.new(template)
+
+		File.open("#{@name}_nginx_config", 'w') do |f|
+			f.write erb.result(self.get_binding)
+		end
+
+		system("sudo mv #{@name}_nginx_config /opt/nginx/conf/containers/#{@name}.conf")
+	end
+
+	# reload nginx configuration
+	def rehash_nginx
+		`sudo kill -HUP $(cat /opt/nginx/logs/nginx.pid)`
+	end
+	
+	# generate a new config file
+	def create_lxc_config
+		@ip = self.container_ip
+		@ram = self.ram
+		@name = self.app_name
+
+		template = %{
+lxc.utsname = <%= @name %>
+lxc.mount = /var/lib/lxc/<%= @name %>/fstab
+lxc.rootfs = /var/lib/lxc/<%= @name %>/rootfs
+
+# networking
 lxc.network.type=veth
-lxc.network.link=lxcbr0
 lxc.network.flags=up
+lxc.network.link=lxcbr0
 #lxc.network.hwaddr=00:16:3e:85:68:c1
-lxc.network.ipv4=<%= @ip %>
+lxc.network.name = eth0
+lxc.network.ipv4=<%= @ip %>/24
 
 lxc.devttydir = lxc
 lxc.tty = 4
@@ -115,10 +167,6 @@ lxc.cgroup.devices.allow = c 10:200 rwm
 lxc.cgroup.devices.allow = c 1:7 rwm
 lxc.cgroup.devices.allow = c 10:228 rwm
 lxc.cgroup.devices.allow = c 10:232 rwm
-
-lxc.utsname = <%= @name %>
-lxc.mount = /var/lib/lxc/<%= @name %>/fstab
-lxc.rootfs = /var/lib/lxc/<%= @name %>/rootfs
 }
 
 		erb = ERB.new(template)
