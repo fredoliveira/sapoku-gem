@@ -1,7 +1,7 @@
 require 'redis'
 require 'erb'
 
-class Gyro
+class Tadpole
 	attr_accessor :container_ip, :local_port, :app_name, :userid, :ram
 	$redis = Redis.new
 
@@ -10,12 +10,12 @@ class Gyro
 		# if this is false, return nil
 		return nil if !$redis.hexists(name, "ip")
 
-		gyro = self.new(name)
-		gyro.container_ip = $redis.hget(name, "ip")
-		gyro.local_port = $redis.hget(name, "localport")
-		gyro.userid = $redis.hget(name, "userid")
-		gyro.ram = $redis.hget(name, "ram")
-		return gyro
+		tadpole = self.new(name)
+		tadpole.container_ip = $redis.hget(name, "ip")
+		tadpole.local_port = $redis.hget(name, "localport")
+		tadpole.userid = $redis.hget(name, "userid")
+		tadpole.ram = $redis.hget(name, "ram")
+		return tadpole
 	end
 
 	# create a new container stub (then requires saving)
