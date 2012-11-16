@@ -23,7 +23,7 @@ class Tadpole
 		@container_ip = getfreeip
 		@local_port = getlocalport
 		@app_name = name
-		@ram = 256
+		@ram = 512
 	end
 
 	# creates and saves the new container
