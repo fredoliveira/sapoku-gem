@@ -70,6 +70,7 @@ class Tadpole
 		output = "Creating new container for your app using the #{@stack} stack"
 		output += `sudo lxc-clone -o #{@stack} -n #{@app_name}`
 		output += "Applying new config file to container"
+		create_interfaces_file
 		create_lxc_config
 		output += "Booting your new container"
 		output += `sudo lxc-start -n #{@app_name} -d`
@@ -93,6 +94,33 @@ class Tadpole
 
 	def get_binding
 		binding
+	end
+
+	def create_interfaces_file
+		@ip = self.container_ip
+		@name = self.app_name
+
+		template = %{
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+address #{@ip}
+netmask 255.255.255.0
+gateway 10.0.3.1
+#iface eth0 inet dhcp
+
+up route add default gw 10.0.3.1 dev eth0
+}
+
+		erb = ERB.new(template)
+
+		File.open("#{@name}_interfaces", 'w') do |f|
+			f.write erb.result(self.get_binding)
+		end
+
+		system("sudo mv #{@name}_interfaces /var/lib/lxc/#{@name}/rootfs/etc/network/interfaces")
 	end
 
 	def create_nginx_config
@@ -146,6 +174,7 @@ lxc.network.link=lxcbr0
 #lxc.network.hwaddr=00:16:3e:85:68:c1
 lxc.network.name = eth0
 lxc.network.ipv4=<%= @ip %>/24
+lxc.network.ipv4.gateway = 10.0.3.1
 
 lxc.devttydir = lxc
 lxc.tty = 4
