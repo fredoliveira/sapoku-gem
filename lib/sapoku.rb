@@ -2,7 +2,7 @@ require 'redis'
 require 'erb'
 
 class Tadpole
-	attr_accessor :container_ip, :local_port, :app_name, :userid, :ram, :stack
+	attr_accessor :container_ip, :local_port, :app_name, :userid, :ram, :stack, :release
 	$redis = Redis.new
 
 	# return an instance based on a given name, if it exists
@@ -16,6 +16,7 @@ class Tadpole
 		tadpole.userid = $redis.hget(name, "userid")
 		tadpole.ram = $redis.hget(name, "ram")
 		tadpole.stack = $redis.hget(name, "stack")
+		tadpole.release = $redis.hget(name, "release") || 0
 		return tadpole
 	end
 
@@ -37,6 +38,7 @@ class Tadpole
 		@app_name = name
 		@stack = stack
 		@ram = 512
+		@release = 0
 	end
 
 	# creates and saves the new container
@@ -46,6 +48,14 @@ class Tadpole
 		$redis.hset(@app_name, "userid", @userid)
 		$redis.hset(@app_name, "ram", @ram)
 		$redis.hset(@app_name, "stack", @stack)
+	end
+
+	def increment_release
+		@release = $redis.hincrby(app_name, "release", 1)
+	end
+
+	def rollback
+		@release = $redis.hincrby(app_name, "release", -1)
 	end
 
 	# wipes a container from HDD and redis
